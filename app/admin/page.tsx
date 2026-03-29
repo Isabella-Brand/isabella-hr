@@ -383,6 +383,8 @@ export default function AdminPage() {
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [filterRole, setFilterRole] = useState("");
+  const [filterShift, setFilterShift] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -428,6 +430,28 @@ export default function AdminPage() {
 
   const activeEmployees = employees.filter((e) => e.status !== "Deactivated");
   const archivedEmployees = employees.filter((e) => e.status === "Deactivated");
+
+  const filteredActiveEmployees = activeEmployees.filter((e) => {
+    if (filterRole  && e.role          !== filterRole)  return false;
+    if (filterShift && e.shiftAssigned !== filterShift) return false;
+    return true;
+  });
+
+  function exportEmployeesCSV() {
+    const headers = ["First Name","Last Name","Email","Country","Start Date","Telegram","Role","Shift","Gusto Acc","CRM Name","Status"];
+    const rows = filteredActiveEmployees.map((e) => [
+      e.firstName, e.lastName, e.email, e.country, e.startDate,
+      e.telegramHandle, e.role, e.shiftAssigned, e.gustoAcc, e.crmName, e.status,
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `active-employees${filterRole ? `-${filterRole}` : ""}${filterShift ? `-${filterShift}` : ""}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const tableHeaders = (
     <thead>
@@ -543,9 +567,54 @@ export default function AdminPage() {
 
         {/* Active Employees Table */}
         <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-white font-semibold">Active Employees</h2>
-            <span className="text-gray-400 text-sm">{activeEmployees.length} people</span>
+          <div className="px-6 py-4 border-b border-gray-800">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-semibold">Active Employees</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-sm">
+                  {filteredActiveEmployees.length}{filteredActiveEmployees.length !== activeEmployees.length ? ` of ${activeEmployees.length}` : ""} people
+                </span>
+                <button
+                  onClick={exportEmployeesCSV}
+                  className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-semibold transition-all"
+                >
+                  Export CSV
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="bg-gray-800 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="">All Roles</option>
+                <option value="QA Lead">QA Lead</option>
+                <option value="Chatter">Chatter</option>
+                <option value="Management">Management</option>
+                <option value="Executive Assistant">Executive Assistant</option>
+                <option value="Shipping">Shipping</option>
+                <option value="Graphics">Graphics</option>
+              </select>
+              <select
+                value={filterShift}
+                onChange={(e) => setFilterShift(e.target.value)}
+                className="bg-gray-800 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="">All Shifts</option>
+                <option value="Morning">Morning</option>
+                <option value="Afternoon">Afternoon</option>
+                <option value="Graveyard">Graveyard</option>
+              </select>
+              {(filterRole || filterShift) && (
+                <button
+                  onClick={() => { setFilterRole(""); setFilterShift(""); }}
+                  className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs transition-all"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -556,12 +625,16 @@ export default function AdminPage() {
             <div className="text-center py-16 text-gray-500">
               No active employees yet. Send the onboarding form to get started.
             </div>
+          ) : filteredActiveEmployees.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 text-sm">
+              No employees match the selected filters.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 {tableHeaders}
                 <tbody>
-                  {activeEmployees.map((emp) => (
+                  {filteredActiveEmployees.map((emp) => (
                     <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} />
                   ))}
                 </tbody>
