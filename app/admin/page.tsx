@@ -495,6 +495,45 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Shift Breakdown */}
+        {!loading && activeEmployees.length > 0 && (
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            {(["Morning", "Afternoon", "Graveyard"] as const).map((shift) => {
+              const chatters = activeEmployees.filter((e) => e.shiftAssigned === shift && e.role === "Chatter").length;
+              const qaLeads  = activeEmployees.filter((e) => e.shiftAssigned === shift && e.role === "QA Lead").length;
+              const total    = chatters + qaLeads;
+              const colors: Record<string, { border: string; label: string; dot: string }> = {
+                Morning:   { border: "border-amber-700",  label: "text-amber-400",  dot: "bg-amber-400" },
+                Afternoon: { border: "border-blue-700",   label: "text-blue-400",   dot: "bg-blue-400"  },
+                Graveyard: { border: "border-indigo-700", label: "text-indigo-400", dot: "bg-indigo-400" },
+              };
+              const c = colors[shift];
+              return (
+                <div key={shift} className={`bg-gray-900 rounded-2xl p-5 border ${c.border}`}>
+                  <p className={`text-xs uppercase tracking-wider font-semibold mb-3 ${c.label}`}>{shift}</p>
+                  <p className="text-2xl font-bold text-white mb-3">{total} <span className="text-sm font-normal text-gray-400">active</span></p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-400 flex items-center gap-1.5">
+                        <span className={`inline-block w-2 h-2 rounded-full ${c.dot}`} />
+                        Chatters
+                      </span>
+                      <span className="font-semibold text-white">{chatters}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-400 flex items-center gap-1.5">
+                        <span className={`inline-block w-2 h-2 rounded-full ${c.dot} opacity-50`} />
+                        QA Leads
+                      </span>
+                      <span className="font-semibold text-white">{qaLeads}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div className="mb-6 rounded-xl px-4 py-3 bg-red-950 border border-red-700">
