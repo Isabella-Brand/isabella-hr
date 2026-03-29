@@ -102,6 +102,45 @@ export async function getAllClockedIn(): Promise<AttendanceRecord[]> {
   }));
 }
 
+export async function getAttendanceRange(
+  startDate: string,
+  endDate: string,
+  startHour?: number,
+  endHour?: number
+): Promise<AttendanceRecord[]> {
+  const { data, error } = await db
+    .from("attendance")
+    .select("*")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .not("clock_out", "is", null)
+    .order("clock_in", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  let records: AttendanceRecord[] = (data ?? []).map((r) => ({
+    id:          r.id,
+    name:        r.name,
+    shift:       r.shift as Shift,
+    clockIn:     r.clock_in,
+    clockOut:    r.clock_out ?? undefined,
+    hoursWorked: r.hours_worked ?? undefined,
+    date:        r.date,
+  }));
+
+  if (startHour !== undefined || endHour !== undefined) {
+    records = records.filter((r) => {
+      const estHour = new Date(
+        new Date(r.clockIn).toLocaleString("en-US", { timeZone: "America/New_York" })
+      ).getHours();
+      if (startHour !== undefined && estHour < startHour) return false;
+      if (endHour !== undefined && estHour > endHour) return false;
+      return true;
+    });
+  }
+
+  return records;
+}
+
 export async function getTodayAttendance(): Promise<AttendanceRecord[]> {
   const today = toESTDateString(new Date());
   const { data, error } = await db

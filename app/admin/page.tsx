@@ -96,6 +96,110 @@ function SendFormModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Add Employee Modal ────────────────────────────────────────────
+
+function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [form, setForm] = useState({
+    firstName: "", lastName: "", email: "",
+    country: "", startDate: "", telegramHandle: "",
+  });
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  function set(field: string, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to add employee");
+      setStatus("success");
+      setTimeout(() => { onAdded(); onClose(); }, 1000);
+    } catch (err: any) {
+      setErrMsg(err.message);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-white font-bold text-lg">Add Employee Manually</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {status === "success" ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-3">✅</div>
+            <p className="text-green-400 font-semibold">Employee added!</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">First Name *</label>
+                <input type="text" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} required
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Last Name *</label>
+                <input type="text" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} required
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Personal Email *</label>
+              <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Country</label>
+              <input type="text" value={form.country} onChange={(e) => set("country", e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Start Date</label>
+              <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Telegram Handle</label>
+              <input type="text" value={form.telegramHandle} onChange={(e) => set("telegramHandle", e.target.value)} placeholder="@username"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            {status === "error" && (
+              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+                <p className="text-xs text-red-400">{errMsg}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-all">
+                Cancel
+              </button>
+              <button type="submit" disabled={status === "loading"}
+                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all disabled:opacity-60">
+                {status === "loading" ? "Adding..." : "Add Employee"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Employee Row ──────────────────────────────────────────────────
 
 function EmployeeRow({
@@ -253,6 +357,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
@@ -313,6 +418,7 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-gray-950 p-4 md:p-8">
       {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
+      {showAddModal && <AddEmployeeModal onClose={() => setShowAddModal(false)} onAdded={fetchEmployees} />}
 
       {/* Header */}
       <div className="max-w-7xl mx-auto">
@@ -322,6 +428,12 @@ export default function AdminPage() {
             <p className="text-gray-400 text-sm mt-1">Isabella — HR Portal</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold transition-all"
+            >
+              + Add Manually
+            </button>
             <button
               onClick={() => setShowModal(true)}
               className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all"
