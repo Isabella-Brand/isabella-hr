@@ -81,6 +81,12 @@ export async function createEmployee(fields: {
 export async function updateEmployee(
   id: string,
   fields: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    country?: string;
+    startDate?: string;
+    telegramHandle?: string;
     status?: EmployeeStatus;
     gustoAcc?: string;
     crmName?: string;
@@ -90,6 +96,12 @@ export async function updateEmployee(
   }
 ): Promise<void> {
   const patch: Record<string, string> = {};
+  if (fields.firstName !== undefined)       patch.first_name       = fields.firstName;
+  if (fields.lastName !== undefined)        patch.last_name        = fields.lastName;
+  if (fields.email !== undefined)           patch.email            = fields.email;
+  if (fields.country !== undefined)         patch.country          = fields.country;
+  if (fields.startDate !== undefined)       patch.start_date       = fields.startDate;
+  if (fields.telegramHandle !== undefined)  patch.telegram_handle  = fields.telegramHandle;
   if (fields.status !== undefined)          patch.status           = fields.status;
   if (fields.gustoAcc !== undefined)        patch.gusto_acc        = fields.gustoAcc;
   if (fields.crmName !== undefined)         patch.crm_name         = fields.crmName;
@@ -98,6 +110,11 @@ export async function updateEmployee(
   if (fields.shiftAssigned !== undefined)   patch.shift_assigned   = fields.shiftAssigned;
 
   const { error } = await db.from("employees").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  const { error } = await db.from("employees").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
 

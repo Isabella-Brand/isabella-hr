@@ -205,14 +205,143 @@ function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
   );
 }
 
+// ── Edit Employee Modal ───────────────────────────────────────────
+
+function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    firstName:      employee.firstName,
+    lastName:       employee.lastName,
+    email:          employee.email,
+    country:        employee.country,
+    startDate:      employee.startDate,
+    telegramHandle: employee.telegramHandle,
+    crmName:        employee.crmName,
+    gustoAcc:       employee.gustoAcc,
+  });
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  function set(field: string, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: employee.id, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save");
+      setStatus("success");
+      setTimeout(() => { onSaved(); onClose(); }, 800);
+    } catch (err: any) {
+      setErrMsg(err.message);
+      setStatus("error");
+    }
+  }
+
+  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h2 className="text-white font-bold text-lg">Edit Employee</h2>
+            <p className="text-gray-400 text-xs mt-0.5">{fullName}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {status === "success" ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-3">✅</div>
+            <p className="text-green-400 font-semibold">Saved!</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">First Name *</label>
+                <input type="text" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} required
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Last Name *</label>
+                <input type="text" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} required
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Email *</label>
+              <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Country</label>
+              <input type="text" value={form.country} onChange={(e) => set("country", e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Start Date</label>
+              <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Telegram Handle</label>
+              <input type="text" value={form.telegramHandle} onChange={(e) => set("telegramHandle", e.target.value)} placeholder="@username"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name</label>
+              <input type="text" value={form.crmName} onChange={(e) => set("crmName", e.target.value)} placeholder="Name in CRM..."
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Gusto Acc</label>
+              <input type="text" value={form.gustoAcc} onChange={(e) => set("gustoAcc", e.target.value)} placeholder="Gusto ID..."
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+
+            {status === "error" && (
+              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+                <p className="text-xs text-red-400">{errMsg}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-all">
+                Cancel
+              </button>
+              <button type="submit" disabled={status === "loading"}
+                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all disabled:opacity-60">
+                {status === "loading" ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Employee Row ──────────────────────────────────────────────────
 
 function EmployeeRow({
   employee,
   onUpdate,
+  onEdit,
+  onDelete,
 }: {
   employee: Employee;
   onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
+  onEdit: (employee: Employee) => void;
+  onDelete: (employee: Employee) => void;
 }) {
   const [status, setStatus] = useState<EmployeeStatus>(employee.status);
   const [gusto, setGusto] = useState(employee.gustoAcc);
@@ -366,7 +495,24 @@ function EmployeeRow({
         />
       </td>
       <td className="px-4 py-3 text-center">
-        {saving && <span className="text-xs text-indigo-400 animate-pulse">saving…</span>}
+        {saving ? (
+          <span className="text-xs text-indigo-400 animate-pulse">saving…</span>
+        ) : (
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => onEdit(employee)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors px-2 py-1 rounded hover:bg-gray-700"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(employee)}
+              className="text-xs text-red-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-gray-700"
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -385,6 +531,9 @@ export default function AdminPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [filterRole, setFilterRole] = useState("");
   const [filterShift, setFilterShift] = useState("");
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -418,6 +567,18 @@ export default function AdminPage() {
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, ...fields } : e)
     );
+  }
+
+  async function handleDelete(employee: Employee) {
+    setDeleteLoading(true);
+    await fetch("/api/employees", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: employee.id }),
+    });
+    setEmployees((prev) => prev.filter((e) => e.id !== employee.id));
+    setDeletingEmployee(null);
+    setDeleteLoading(false);
   }
 
   if (status === "loading" || status === "unauthenticated") {
@@ -467,6 +628,38 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-950 p-4 md:p-8">
       {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
       {showAddModal && <AddEmployeeModal onClose={() => setShowAddModal(false)} onAdded={fetchEmployees} />}
+      {editingEmployee && (
+        <EditEmployeeModal
+          employee={editingEmployee}
+          onClose={() => setEditingEmployee(null)}
+          onSaved={fetchEmployees}
+        />
+      )}
+      {deletingEmployee && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-white font-bold text-lg mb-2">Delete Employee?</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              This will permanently remove <span className="text-white font-semibold">{deletingEmployee.firstName} {deletingEmployee.lastName}</span> and all their data. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingEmployee(null)}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deletingEmployee)}
+                disabled={deleteLoading}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold transition-all disabled:opacity-60"
+              >
+                {deleteLoading ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="max-w-7xl mx-auto">
@@ -635,7 +828,7 @@ export default function AdminPage() {
                 {tableHeaders}
                 <tbody>
                   {filteredActiveEmployees.map((emp) => (
-                    <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} />
+                    <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} />
                   ))}
                 </tbody>
               </table>
@@ -663,7 +856,7 @@ export default function AdminPage() {
                   {tableHeaders}
                   <tbody>
                     {archivedEmployees.map((emp) => (
-                      <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} />
+                      <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} />
                     ))}
                   </tbody>
                 </table>
