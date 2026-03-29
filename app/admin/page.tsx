@@ -589,7 +589,35 @@ export default function AdminPage() {
     );
   }
 
-  const activeEmployees = employees.filter((e) => e.status !== "Deactivated");
+  function sortEmployees(a: Employee, b: Employee): number {
+    const rolePriority = (role: string) => {
+      if (!role)               return 0;
+      if (role === "Chatter" || role === "QA Lead") return 1;
+      if (role === "Management") return 2;
+      return 3;
+    };
+    const shiftPriority = (shift: string) => {
+      if (shift === "Morning")   return 0;
+      if (shift === "Afternoon") return 1;
+      if (shift === "Graveyard") return 2;
+      return 3;
+    };
+
+    const rA = rolePriority(a.role), rB = rolePriority(b.role);
+    if (rA !== rB) return rA - rB;
+
+    // Within Chatter/QA group: sort by shift, then QA Lead before Chatter
+    if (rA === 1) {
+      const sA = shiftPriority(a.shiftAssigned), sB = shiftPriority(b.shiftAssigned);
+      if (sA !== sB) return sA - sB;
+      if (a.role !== b.role) return a.role === "QA Lead" ? -1 : 1;
+    }
+
+    // Alphabetical within same group
+    return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+  }
+
+  const activeEmployees = employees.filter((e) => e.status !== "Deactivated").sort(sortEmployees);
   const archivedEmployees = employees.filter((e) => e.status === "Deactivated");
 
   const filteredActiveEmployees = activeEmployees.filter((e) => {
