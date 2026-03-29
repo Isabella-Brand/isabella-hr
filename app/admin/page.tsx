@@ -177,8 +177,8 @@ function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name (FansMetric)</label>
-              <input type="text" value={form.crmName} onChange={(e) => set("crmName", e.target.value)} placeholder="FansMetric handle..."
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name</label>
+              <input type="text" value={form.crmName} onChange={(e) => set("crmName", e.target.value)} placeholder="Name in CRM..."
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
 
@@ -361,7 +361,7 @@ function EmployeeRow({
           onChange={(e) => setCrmName(e.target.value)}
           onBlur={handleCrmNameBlur}
           disabled={saving}
-          placeholder="FansMetric handle..."
+          placeholder="Name in CRM..."
           className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 disabled:opacity-50"
         />
       </td>
