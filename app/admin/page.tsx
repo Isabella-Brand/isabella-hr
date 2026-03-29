@@ -1,0 +1,435 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import type { Employee, EmployeeStatus, EmployeeRole, EmployeeShift } from "@/lib/employees";
+
+// ── Send Form Modal ───────────────────────────────────────────────
+
+function SendFormModal({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/send-form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      setStatus("success");
+    } catch (err: any) {
+      setErrMsg(err.message);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-white font-bold text-lg">Send Onboarding Form</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {status === "success" ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-3">✅</div>
+            <p className="text-green-400 font-semibold">Form sent successfully!</p>
+            <p className="text-gray-400 text-sm mt-1">{email}</p>
+            <button onClick={onClose} className="mt-5 w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
+              Close
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+                New Hire Name (optional)
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. John"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="newhire@email.com"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {status === "error" && (
+              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+                <p className="text-xs text-red-400">{errMsg}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={status === "loading"}
+              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all disabled:opacity-60"
+            >
+              {status === "loading" ? "Sending..." : "Send Form"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Employee Row ──────────────────────────────────────────────────
+
+function EmployeeRow({
+  employee,
+  onUpdate,
+}: {
+  employee: Employee;
+  onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
+}) {
+  const [status, setStatus] = useState<EmployeeStatus>(employee.status);
+  const [gusto, setGusto] = useState(employee.gustoAcc);
+  const [deactivatedDate, setDeactivatedDate] = useState(employee.deactivatedDate);
+  const [role, setRole] = useState<EmployeeRole>(employee.role);
+  const [shiftAssigned, setShiftAssigned] = useState<EmployeeShift>(employee.shiftAssigned);
+  const [saving, setSaving] = useState(false);
+
+  const shiftRoles: EmployeeRole[] = ["QA Lead", "Chatter"];
+
+  async function handleStatusChange(val: EmployeeStatus) {
+    setStatus(val);
+    setSaving(true);
+    const newDate = val === "Deactivated" ? new Date().toISOString().split("T")[0] : "";
+    setDeactivatedDate(newDate);
+    await onUpdate(employee.id, { status: val, deactivatedDate: newDate });
+    setSaving(false);
+  }
+
+  async function handleGustoBlur() {
+    if (gusto === employee.gustoAcc) return;
+    setSaving(true);
+    await onUpdate(employee.id, { gustoAcc: gusto });
+    setSaving(false);
+  }
+
+  async function handleDateChange(val: string) {
+    setDeactivatedDate(val);
+    setSaving(true);
+    await onUpdate(employee.id, { deactivatedDate: val });
+    setSaving(false);
+  }
+
+  async function handleRoleChange(val: EmployeeRole) {
+    setRole(val);
+    setSaving(true);
+    const newShift = shiftRoles.includes(val) ? shiftAssigned : "";
+    setShiftAssigned(newShift);
+    await onUpdate(employee.id, { role: val, shiftAssigned: newShift });
+    setSaving(false);
+  }
+
+  async function handleShiftChange(val: EmployeeShift) {
+    setShiftAssigned(val);
+    setSaving(true);
+    await onUpdate(employee.id, { shiftAssigned: val });
+    setSaving(false);
+  }
+
+  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+
+  return (
+    <tr className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
+      <td className="px-4 py-3">
+        <div className="text-white font-medium text-sm">{fullName || "—"}</div>
+        <div className="text-gray-400 text-xs mt-0.5">{employee.email}</div>
+      </td>
+      <td className="px-4 py-3 text-gray-300 text-sm">{employee.telegramHandle || "—"}</td>
+      <td className="px-4 py-3 text-gray-300 text-sm">{employee.country || "—"}</td>
+      <td className="px-4 py-3 text-gray-300 text-sm">{employee.startDate || "—"}</td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-1.5">
+          <select
+            value={status}
+            onChange={(e) => handleStatusChange(e.target.value as EmployeeStatus)}
+            disabled={saving}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer
+              ${status === "Active"
+                ? "bg-green-950 border-green-700 text-green-300"
+                : status === "Deactivated"
+                ? "bg-red-950 border-red-800 text-red-400"
+                : "bg-gray-800 border-gray-600 text-gray-300"
+              }`}
+          >
+            <option value="">— Set Status —</option>
+            <option value="Active">Active</option>
+            <option value="Deactivated">Deactivated</option>
+          </select>
+          {status === "Deactivated" && (
+            <input
+              type="date"
+              value={deactivatedDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+              disabled={saving}
+              className="bg-gray-800 text-red-300 text-xs rounded-lg px-2 py-1 border border-red-900 focus:outline-none focus:ring-2 focus:ring-red-700 disabled:opacity-50"
+            />
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <select
+          value={role}
+          onChange={(e) => handleRoleChange(e.target.value as EmployeeRole)}
+          disabled={saving}
+          className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+        >
+          <option value="">— Role —</option>
+          <option value="QA Lead">QA Lead</option>
+          <option value="Chatter">Chatter</option>
+          <option value="Management">Management</option>
+          <option value="Executive Assistant">Executive Assistant</option>
+          <option value="Shipping">Shipping</option>
+          <option value="Graphics">Graphics</option>
+        </select>
+      </td>
+      <td className="px-4 py-3">
+        {shiftRoles.includes(role) ? (
+          <select
+            value={shiftAssigned}
+            onChange={(e) => handleShiftChange(e.target.value as EmployeeShift)}
+            disabled={saving}
+            className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+          >
+            <option value="">— Shift —</option>
+            <option value="Morning">Morning</option>
+            <option value="Afternoon">Afternoon</option>
+            <option value="Graveyard">Graveyard</option>
+          </select>
+        ) : (
+          <span className="text-gray-600 text-xs">N/A</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="text"
+          value={gusto}
+          onChange={(e) => setGusto(e.target.value)}
+          onBlur={handleGustoBlur}
+          disabled={saving}
+          placeholder="Gusto ID..."
+          className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 disabled:opacity-50"
+        />
+      </td>
+      <td className="px-4 py-3 text-center">
+        {saving && <span className="text-xs text-indigo-400 animate-pulse">saving…</span>}
+      </td>
+    </tr>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────
+
+export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.push("/admin/login");
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status === "authenticated") fetchEmployees();
+  }, [status]);
+
+  async function fetchEmployees() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/employees");
+      if (!res.ok) throw new Error("Failed to load employees");
+      const data = await res.json();
+      setEmployees(data.employees);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUpdate(id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) {
+    await fetch("/api/employees", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...fields }),
+    });
+    setEmployees((prev) =>
+      prev.map((e) => e.id === id ? { ...e, ...fields } : e)
+    );
+  }
+
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+      </main>
+    );
+  }
+
+  const activeEmployees = employees.filter((e) => e.status !== "Deactivated");
+  const archivedEmployees = employees.filter((e) => e.status === "Deactivated");
+
+  const tableHeaders = (
+    <thead>
+      <tr className="border-b border-gray-700">
+        {["Employee","Telegram","Country","Start Date","Status / Date","Role","Shift","Gusto Acc",""].map((h) => (
+          <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{h}</th>
+        ))}
+      </tr>
+    </thead>
+  );
+
+  return (
+    <main className="min-h-screen bg-gray-950 p-4 md:p-8">
+      {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
+
+      {/* Header */}
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Employee Management</h1>
+            <p className="text-gray-400 text-sm mt-1">Isabella — HR Portal</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all"
+            >
+              + Send Onboarding Form
+            </button>
+            <button
+              onClick={() => fetchEmployees()}
+              className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold transition-all"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => signOut({ callbackUrl: "/admin/login" })}
+              className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm transition-all"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-gray-900 rounded-2xl p-5">
+            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Total Employees</p>
+            <p className="text-3xl font-bold text-white">{employees.length}</p>
+          </div>
+          <div className="bg-gray-900 rounded-2xl p-5">
+            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Active</p>
+            <p className="text-3xl font-bold text-green-400">{activeEmployees.length}</p>
+          </div>
+          <div className="bg-gray-900 rounded-2xl p-5">
+            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Deactivated</p>
+            <p className="text-3xl font-bold text-red-400">{archivedEmployees.length}</p>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mb-6 rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Active Employees Table */}
+        <div className="bg-gray-900 rounded-2xl overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-white font-semibold">Active Employees</h2>
+            <span className="text-gray-400 text-sm">{activeEmployees.length} people</span>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : activeEmployees.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              No active employees yet. Send the onboarding form to get started.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                {tableHeaders}
+                <tbody>
+                  {activeEmployees.map((emp) => (
+                    <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Archived / Deactivated */}
+        {archivedEmployees.length > 0 && (
+          <div className="bg-gray-900 rounded-2xl overflow-hidden opacity-70">
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="w-full px-6 py-4 border-b border-gray-800 flex items-center justify-between hover:bg-gray-800/40 transition-colors"
+            >
+              <h2 className="text-gray-400 font-semibold">Archived (Deactivated)</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-sm">{archivedEmployees.length} people</span>
+                <span className="text-gray-500 text-sm">{showArchived ? "▲" : "▼"}</span>
+              </div>
+            </button>
+
+            {showArchived && (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  {tableHeaders}
+                  <tbody>
+                    {archivedEmployees.map((emp) => (
+                      <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="text-center mt-8">
+          <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+            ← Clock In / Out
+          </a>
+        </div>
+      </div>
+    </main>
+  );
+}

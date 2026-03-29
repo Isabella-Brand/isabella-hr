@@ -1,65 +1,253 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect } from "react";
+import {
+  getCurrentShift,
+  SHIFT_COLORS,
+  SHIFT_EMOJI,
+  type Shift,
+} from "@/lib/roster";
+import type { AttendanceRecord } from "@/lib/sheets";
+
+type ActiveEmployee = { name: string; email: string };
+
+type AppState = "idle" | "loading" | "clocked-in" | "clocked-out" | "error";
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+  });
+}
+
+function formatDuration(clockInISO: string) {
+  const diff = Date.now() - new Date(clockInISO).getTime();
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+export default function ClockPage() {
+  const [selectedName, setSelectedName] = useState("");
+  const [shift, setShift] = useState<Shift>(getCurrentShift());
+  const [state, setState] = useState<AppState>("idle");
+  const [record, setRecord] = useState<AttendanceRecord | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [elapsed, setElapsed] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
+
+  // Load active employees from sheet
+  useEffect(() => {
+    fetch("/api/active-employees")
+      .then((r) => r.json())
+      .then((data) => { if (data.employees) setActiveEmployees(data.employees); })
+      .catch(() => {});
+  }, []);
+
+  // Update shift label every minute
+  useEffect(() => {
+    const t = setInterval(() => setShift(getCurrentShift()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Update elapsed timer every 30s when clocked in
+  useEffect(() => {
+    if (state !== "clocked-in" || !record) return;
+    const tick = () => setElapsed(formatDuration(record.clockIn));
+    tick();
+    const t = setInterval(tick, 30_000);
+    return () => clearInterval(t);
+  }, [state, record]);
+
+  // When name changes, check current status
+  useEffect(() => {
+    if (!selectedName) {
+      setState("idle");
+      setRecord(null);
+      return;
+    }
+
+    setChecking(true);
+    fetch(`/api/status?name=${encodeURIComponent(selectedName)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.clockedIn) {
+          setState("clocked-in");
+          setRecord(data.record);
+        } else {
+          setState("idle");
+          setRecord(null);
+        }
+      })
+      .catch(() => setState("idle"))
+      .finally(() => setChecking(false));
+  }, [selectedName]);
+
+  async function handleClockIn() {
+    setState("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/clock-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: selectedName, shift }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Clock-in failed");
+      setState("clocked-in");
+      setRecord(data.record);
+    } catch (err: unknown) {
+      setState("error");
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }
+
+  async function handleClockOut() {
+    setState("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/clock-out", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: selectedName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Clock-out failed");
+      setState("clocked-out");
+      setRecord(data.record);
+    } catch (err: unknown) {
+      setState("error");
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
+    }
+  }
+
+  const effectiveShift: Shift = shift;
+  const colors = SHIFT_COLORS[effectiveShift];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Isabella</h1>
+          <p className="text-gray-400 text-sm mt-1">Attendance</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+
+        {/* Card */}
+        <div className="bg-gray-900 rounded-2xl shadow-xl overflow-hidden">
+          {/* Shift banner */}
+          <div className={`${colors.bg} ${colors.text} px-5 py-3 flex items-center justify-between`}>
+            <span className="text-sm font-semibold">
+              {SHIFT_EMOJI[effectiveShift]} {effectiveShift} Shift
+            </span>
+            <span className="text-xs opacity-70">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                timeZone: "America/New_York",
+              })}
+            </span>
+          </div>
+
+          <div className="p-6 space-y-5">
+            {/* Name selector */}
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+                Select Your Name
+              </label>
+              <select
+                value={selectedName}
+                onChange={(e) => setSelectedName(e.target.value)}
+                disabled={state === "loading" || state === "clocked-in"}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">— Choose name —</option>
+                {activeEmployees.map((e) => (
+                  <option key={e.email} value={e.name}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Spinner while checking status */}
+            {checking && (
+              <div className="text-center py-2">
+                <div className="inline-block w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {/* Clocked-in status */}
+            {state === "clocked-in" && record && (
+              <div className={`rounded-xl px-4 py-3 ${colors.bg} ${colors.border} border`}>
+                <p className={`text-xs font-medium ${colors.text} mb-1`}>Currently clocked in</p>
+                <p className={`text-lg font-bold ${colors.text}`}>{elapsed || formatDuration(record.clockIn)}</p>
+                <p className={`text-xs ${colors.text} opacity-70 mt-0.5`}>
+                  Since {formatTime(record.clockIn)} EST
+                </p>
+              </div>
+            )}
+
+            {/* Clocked-out confirmation */}
+            {state === "clocked-out" && record && (
+              <div className="rounded-xl px-4 py-3 bg-green-950 border border-green-700">
+                <p className="text-xs font-medium text-green-400 mb-1">Clocked out successfully</p>
+                <p className="text-lg font-bold text-green-300">{record.hoursWorked}h worked</p>
+                <p className="text-xs text-green-400 opacity-70 mt-0.5">
+                  {formatTime(record.clockIn)} &rarr; {formatTime(record.clockOut!)} EST
+                </p>
+              </div>
+            )}
+
+            {/* Error */}
+            {state === "error" && (
+              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+                <p className="text-xs font-medium text-red-400">{errorMsg}</p>
+              </div>
+            )}
+
+            {/* Action button */}
+            {selectedName && !checking && state !== "clocked-out" && (
+              <button
+                onClick={state === "clocked-in" ? handleClockOut : handleClockIn}
+                disabled={state === "loading"}
+                className={`w-full py-4 rounded-xl text-base font-bold tracking-wide transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed
+                  ${state === "clocked-in"
+                    ? "bg-red-600 hover:bg-red-500 text-white"
+                    : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                  }`}
+              >
+                {state === "loading"
+                  ? "Please wait..."
+                  : state === "clocked-in"
+                  ? "Stop  Clock Out"
+                  : "Play  Clock In"}
+              </button>
+            )}
+
+            {state === "clocked-out" && (
+              <button
+                onClick={() => { setSelectedName(""); setState("idle"); setRecord(null); }}
+                className="w-full py-4 rounded-xl text-base font-bold bg-gray-800 hover:bg-gray-700 text-white transition-all active:scale-95"
+              >
+                Done
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Links */}
+        <div className="text-center mt-6 flex justify-center gap-6">
+          <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+            Manager Dashboard &rarr;
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
+          <a href="/admin" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+            HR Portal &rarr;
           </a>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
