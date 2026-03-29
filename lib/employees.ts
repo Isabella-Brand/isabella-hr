@@ -15,6 +15,7 @@ export interface Employee {
   telegramHandle: string;
   status: EmployeeStatus;
   gustoAcc: string;
+  crmName: string;
   deactivatedDate: string;
   role: EmployeeRole;
   shiftAssigned: EmployeeShift;
@@ -32,6 +33,7 @@ function rowToEmployee(r: Record<string, string>): Employee {
     telegramHandle:  r.telegram_handle ?? "",
     status:          (r.status ?? "") as EmployeeStatus,
     gustoAcc:        r.gusto_acc ?? "",
+    crmName:         r.crm_name ?? "",
     deactivatedDate: r.deactivated_date ?? "",
     role:            (r.role ?? "") as EmployeeRole,
     shiftAssigned:   (r.shift_assigned ?? "") as EmployeeShift,
@@ -54,6 +56,7 @@ export async function createEmployee(fields: {
   country?: string;
   startDate?: string;
   telegramHandle?: string;
+  crmName?: string;
 }): Promise<Employee> {
   const { data, error } = await db
     .from("employees")
@@ -64,6 +67,7 @@ export async function createEmployee(fields: {
       country:          fields.country ?? "",
       start_date:       fields.startDate ?? "",
       telegram_handle:  fields.telegramHandle ?? "",
+      crm_name:         fields.crmName ?? "",
       status:           "",
       role:             "",
       shift_assigned:   "",
@@ -79,6 +83,7 @@ export async function updateEmployee(
   fields: {
     status?: EmployeeStatus;
     gustoAcc?: string;
+    crmName?: string;
     deactivatedDate?: string;
     role?: EmployeeRole;
     shiftAssigned?: EmployeeShift;
@@ -87,6 +92,7 @@ export async function updateEmployee(
   const patch: Record<string, string> = {};
   if (fields.status !== undefined)          patch.status           = fields.status;
   if (fields.gustoAcc !== undefined)        patch.gusto_acc        = fields.gustoAcc;
+  if (fields.crmName !== undefined)         patch.crm_name         = fields.crmName;
   if (fields.deactivatedDate !== undefined) patch.deactivated_date = fields.deactivatedDate;
   if (fields.role !== undefined)            patch.role             = fields.role;
   if (fields.shiftAssigned !== undefined)   patch.shift_assigned   = fields.shiftAssigned;

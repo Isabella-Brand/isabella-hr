@@ -101,7 +101,7 @@ function SendFormModal({ onClose }: { onClose: () => void }) {
 function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "",
-    country: "", startDate: "", telegramHandle: "",
+    country: "", startDate: "", telegramHandle: "", crmName: "",
   });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -176,6 +176,11 @@ function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
               <input type="text" value={form.telegramHandle} onChange={(e) => set("telegramHandle", e.target.value)} placeholder="@username"
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name (FansMetric)</label>
+              <input type="text" value={form.crmName} onChange={(e) => set("crmName", e.target.value)} placeholder="FansMetric handle..."
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
 
             {status === "error" && (
               <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
@@ -207,10 +212,11 @@ function EmployeeRow({
   onUpdate,
 }: {
   employee: Employee;
-  onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
+  onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
 }) {
   const [status, setStatus] = useState<EmployeeStatus>(employee.status);
   const [gusto, setGusto] = useState(employee.gustoAcc);
+  const [crmName, setCrmName] = useState(employee.crmName);
   const [deactivatedDate, setDeactivatedDate] = useState(employee.deactivatedDate);
   const [role, setRole] = useState<EmployeeRole>(employee.role);
   const [shiftAssigned, setShiftAssigned] = useState<EmployeeShift>(employee.shiftAssigned);
@@ -231,6 +237,13 @@ function EmployeeRow({
     if (gusto === employee.gustoAcc) return;
     setSaving(true);
     await onUpdate(employee.id, { gustoAcc: gusto });
+    setSaving(false);
+  }
+
+  async function handleCrmNameBlur() {
+    if (crmName === employee.crmName) return;
+    setSaving(true);
+    await onUpdate(employee.id, { crmName });
     setSaving(false);
   }
 
@@ -341,6 +354,17 @@ function EmployeeRow({
           className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 disabled:opacity-50"
         />
       </td>
+      <td className="px-4 py-3">
+        <input
+          type="text"
+          value={crmName}
+          onChange={(e) => setCrmName(e.target.value)}
+          onBlur={handleCrmNameBlur}
+          disabled={saving}
+          placeholder="FansMetric handle..."
+          className="bg-gray-800 text-white text-xs rounded-lg px-3 py-1.5 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 disabled:opacity-50"
+        />
+      </td>
       <td className="px-4 py-3 text-center">
         {saving && <span className="text-xs text-indigo-400 animate-pulse">saving…</span>}
       </td>
@@ -383,7 +407,7 @@ export default function AdminPage() {
     }
   }
 
-  async function handleUpdate(id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) {
+  async function handleUpdate(id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) {
     await fetch("/api/employees", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -408,7 +432,7 @@ export default function AdminPage() {
   const tableHeaders = (
     <thead>
       <tr className="border-b border-gray-700">
-        {["Employee","Telegram","Country","Start Date","Status / Date","Role","Shift","Gusto Acc",""].map((h) => (
+        {["Employee","Telegram","Country","Start Date","Status / Date","Role","Shift","Gusto Acc","CRM Name",""].map((h) => (
           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{h}</th>
         ))}
       </tr>
