@@ -68,13 +68,13 @@ export async function clockOut(recordId: string, clockInISO: string): Promise<At
 }
 
 export async function getOpenClockIn(name: string): Promise<AttendanceRecord | null> {
-  const today = toESTDateString(new Date());
   const { data, error } = await db
     .from("attendance")
     .select("*")
     .eq("name", name)
-    .eq("date", today)
     .eq("status", "Clocked In")
+    .order("clock_in", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;

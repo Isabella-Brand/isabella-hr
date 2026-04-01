@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clockIn, getOpenClockIn } from "@/lib/sheets";
-import type { Shift } from "@/lib/roster";
+import { getCurrentShift } from "@/lib/roster";
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, shift } = await req.json();
+    const { name } = await req.json();
 
-    if (!name || !shift) {
-      return NextResponse.json({ error: "name and shift are required" }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
+
+    const shift = getCurrentShift();
 
     // Check if already clocked in
     const existing = await getOpenClockIn(name);

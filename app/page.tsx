@@ -1,16 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  getCurrentShift,
-  SHIFT_COLORS,
-  SHIFT_EMOJI,
-  type Shift,
-} from "@/lib/roster";
 import type { AttendanceRecord } from "@/lib/sheets";
 
 type ActiveEmployee = { name: string; email: string };
-
 type AppState = "idle" | "loading" | "clocked-in" | "clocked-out" | "error";
 
 function formatTime(iso: string) {
@@ -31,7 +24,6 @@ function formatDuration(clockInISO: string) {
 
 export default function ClockPage() {
   const [selectedName, setSelectedName] = useState("");
-  const [shift, setShift] = useState<Shift>(getCurrentShift());
   const [state, setState] = useState<AppState>("idle");
   const [record, setRecord] = useState<AttendanceRecord | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -39,7 +31,6 @@ export default function ClockPage() {
   const [checking, setChecking] = useState(false);
   const [activeEmployees, setActiveEmployees] = useState<ActiveEmployee[]>([]);
 
-  // Load active employees from sheet
   useEffect(() => {
     fetch("/api/active-employees")
       .then((r) => r.json())
@@ -47,13 +38,6 @@ export default function ClockPage() {
       .catch(() => {});
   }, []);
 
-  // Update shift label every minute
-  useEffect(() => {
-    const t = setInterval(() => setShift(getCurrentShift()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Update elapsed timer every 30s when clocked in
   useEffect(() => {
     if (state !== "clocked-in" || !record) return;
     const tick = () => setElapsed(formatDuration(record.clockIn));
@@ -62,14 +46,12 @@ export default function ClockPage() {
     return () => clearInterval(t);
   }, [state, record]);
 
-  // When name changes, check current status
   useEffect(() => {
     if (!selectedName) {
       setState("idle");
       setRecord(null);
       return;
     }
-
     setChecking(true);
     fetch(`/api/status?name=${encodeURIComponent(selectedName)}`)
       .then((r) => r.json())
@@ -93,7 +75,7 @@ export default function ClockPage() {
       const res = await fetch("/api/clock-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: selectedName, shift }),
+        body: JSON.stringify({ name: selectedName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Clock-in failed");
@@ -124,9 +106,6 @@ export default function ClockPage() {
     }
   }
 
-  const effectiveShift: Shift = shift;
-  const colors = SHIFT_COLORS[effectiveShift];
-
   return (
     <main className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -137,105 +116,88 @@ export default function ClockPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-gray-900 rounded-2xl shadow-xl overflow-hidden">
-          {/* Shift banner */}
-          <div className={`${colors.bg} ${colors.text} px-5 py-3 flex items-center justify-between`}>
-            <span className="text-sm font-semibold">
-              {SHIFT_EMOJI[effectiveShift]} {effectiveShift} Shift
-            </span>
-            <span className="text-xs opacity-70">
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                timeZone: "America/New_York",
-              })}
-            </span>
+        <div className="bg-gray-900 rounded-2xl shadow-xl p-6 space-y-5">
+          {/* Name selector */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+              Select Your Name
+            </label>
+            <select
+              value={selectedName}
+              onChange={(e) => setSelectedName(e.target.value)}
+              disabled={state === "loading" || state === "clocked-in"}
+              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">— Choose name —</option>
+              {activeEmployees.map((e) => (
+                <option key={e.email} value={e.name}>{e.name}</option>
+              ))}
+            </select>
           </div>
 
-          <div className="p-6 space-y-5">
-            {/* Name selector */}
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-                Select Your Name
-              </label>
-              <select
-                value={selectedName}
-                onChange={(e) => setSelectedName(e.target.value)}
-                disabled={state === "loading" || state === "clocked-in"}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">— Choose name —</option>
-                {activeEmployees.map((e) => (
-                  <option key={e.email} value={e.name}>{e.name}</option>
-                ))}
-              </select>
+          {/* Spinner while checking status */}
+          {checking && (
+            <div className="text-center py-2">
+              <div className="inline-block w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
             </div>
+          )}
 
-            {/* Spinner while checking status */}
-            {checking && (
-              <div className="text-center py-2">
-                <div className="inline-block w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
+          {/* Clocked-in status */}
+          {state === "clocked-in" && record && (
+            <div className="rounded-xl px-4 py-3 bg-indigo-950 border border-indigo-700">
+              <p className="text-xs font-medium text-indigo-400 mb-1">Currently clocked in</p>
+              <p className="text-lg font-bold text-indigo-300">{elapsed || formatDuration(record.clockIn)}</p>
+              <p className="text-xs text-indigo-400 opacity-70 mt-0.5">
+                Since {formatTime(record.clockIn)} EST
+              </p>
+            </div>
+          )}
 
-            {/* Clocked-in status */}
-            {state === "clocked-in" && record && (
-              <div className={`rounded-xl px-4 py-3 ${colors.bg} ${colors.border} border`}>
-                <p className={`text-xs font-medium ${colors.text} mb-1`}>Currently clocked in</p>
-                <p className={`text-lg font-bold ${colors.text}`}>{elapsed || formatDuration(record.clockIn)}</p>
-                <p className={`text-xs ${colors.text} opacity-70 mt-0.5`}>
-                  Since {formatTime(record.clockIn)} EST
-                </p>
-              </div>
-            )}
+          {/* Clocked-out confirmation */}
+          {state === "clocked-out" && record && (
+            <div className="rounded-xl px-4 py-3 bg-green-950 border border-green-700">
+              <p className="text-xs font-medium text-green-400 mb-1">Clocked out successfully</p>
+              <p className="text-lg font-bold text-green-300">{record.hoursWorked}h worked</p>
+              <p className="text-xs text-green-400 opacity-70 mt-0.5">
+                {formatTime(record.clockIn)} &rarr; {formatTime(record.clockOut!)} EST
+              </p>
+            </div>
+          )}
 
-            {/* Clocked-out confirmation */}
-            {state === "clocked-out" && record && (
-              <div className="rounded-xl px-4 py-3 bg-green-950 border border-green-700">
-                <p className="text-xs font-medium text-green-400 mb-1">Clocked out successfully</p>
-                <p className="text-lg font-bold text-green-300">{record.hoursWorked}h worked</p>
-                <p className="text-xs text-green-400 opacity-70 mt-0.5">
-                  {formatTime(record.clockIn)} &rarr; {formatTime(record.clockOut!)} EST
-                </p>
-              </div>
-            )}
+          {/* Error */}
+          {state === "error" && (
+            <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+              <p className="text-xs font-medium text-red-400">{errorMsg}</p>
+            </div>
+          )}
 
-            {/* Error */}
-            {state === "error" && (
-              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
-                <p className="text-xs font-medium text-red-400">{errorMsg}</p>
-              </div>
-            )}
+          {/* Action button */}
+          {selectedName && !checking && state !== "clocked-out" && (
+            <button
+              onClick={state === "clocked-in" ? handleClockOut : handleClockIn}
+              disabled={state === "loading"}
+              className={`w-full py-4 rounded-xl text-base font-bold tracking-wide transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed
+                ${state === "clocked-in"
+                  ? "bg-red-600 hover:bg-red-500 text-white"
+                  : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                }`}
+            >
+              {state === "loading"
+                ? "Please wait..."
+                : state === "clocked-in"
+                ? "Stop  Clock Out"
+                : "Play  Clock In"}
+            </button>
+          )}
 
-            {/* Action button */}
-            {selectedName && !checking && state !== "clocked-out" && (
-              <button
-                onClick={state === "clocked-in" ? handleClockOut : handleClockIn}
-                disabled={state === "loading"}
-                className={`w-full py-4 rounded-xl text-base font-bold tracking-wide transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed
-                  ${state === "clocked-in"
-                    ? "bg-red-600 hover:bg-red-500 text-white"
-                    : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                  }`}
-              >
-                {state === "loading"
-                  ? "Please wait..."
-                  : state === "clocked-in"
-                  ? "Stop  Clock Out"
-                  : "Play  Clock In"}
-              </button>
-            )}
-
-            {state === "clocked-out" && (
-              <button
-                onClick={() => { setSelectedName(""); setState("idle"); setRecord(null); }}
-                className="w-full py-4 rounded-xl text-base font-bold bg-gray-800 hover:bg-gray-700 text-white transition-all active:scale-95"
-              >
-                Done
-              </button>
-            )}
-          </div>
+          {state === "clocked-out" && (
+            <button
+              onClick={() => { setSelectedName(""); setState("idle"); setRecord(null); }}
+              className="w-full py-4 rounded-xl text-base font-bold bg-gray-800 hover:bg-gray-700 text-white transition-all active:scale-95"
+            >
+              Done
+            </button>
+          )}
         </div>
 
         {/* Links */}
