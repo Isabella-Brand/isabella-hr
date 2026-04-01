@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clockIn, getOpenClockIn } from "@/lib/sheets";
-import { getCurrentShift } from "@/lib/roster";
+import { getCurrentShift, type Shift } from "@/lib/roster";
 
 export async function POST(req: NextRequest) {
   try {
