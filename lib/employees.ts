@@ -13,6 +13,7 @@ export interface Employee {
   country: string;
   startDate: string;
   telegramHandle: string;
+  telegramUserId: string;
   status: EmployeeStatus;
   gustoAcc: string;
   crmName: string;
@@ -31,6 +32,7 @@ function rowToEmployee(r: Record<string, string>): Employee {
     country:         r.country ?? "",
     startDate:       r.start_date ?? "",
     telegramHandle:  r.telegram_handle ?? "",
+    telegramUserId:  r.telegram_user_id ?? "",
     status:          (r.status ?? "") as EmployeeStatus,
     gustoAcc:        r.gusto_acc ?? "",
     crmName:         r.crm_name ?? "",
@@ -56,18 +58,20 @@ export async function createEmployee(fields: {
   country?: string;
   startDate?: string;
   telegramHandle?: string;
+  telegramUserId?: string;
   crmName?: string;
 }): Promise<Employee> {
   const { data, error } = await db
     .from("employees")
     .insert({
-      first_name:       fields.firstName,
-      last_name:        fields.lastName,
-      email:            fields.email,
-      country:          fields.country ?? "",
-      start_date:       fields.startDate ?? "",
-      telegram_handle:  fields.telegramHandle ?? "",
-      crm_name:         fields.crmName ?? "",
+      first_name:        fields.firstName,
+      last_name:         fields.lastName,
+      email:             fields.email,
+      country:           fields.country ?? "",
+      start_date:        fields.startDate ?? "",
+      telegram_handle:   fields.telegramHandle ?? "",
+      telegram_user_id:  fields.telegramUserId ?? "",
+      crm_name:          fields.crmName ?? "",
       status:           "",
       role:             "",
       shift_assigned:   "",
@@ -87,6 +91,7 @@ export async function updateEmployee(
     country?: string;
     startDate?: string;
     telegramHandle?: string;
+    telegramUserId?: string;
     status?: EmployeeStatus;
     gustoAcc?: string;
     crmName?: string;
@@ -101,7 +106,8 @@ export async function updateEmployee(
   if (fields.email !== undefined)           patch.email            = fields.email;
   if (fields.country !== undefined)         patch.country          = fields.country;
   if (fields.startDate !== undefined)       patch.start_date       = fields.startDate;
-  if (fields.telegramHandle !== undefined)  patch.telegram_handle  = fields.telegramHandle;
+  if (fields.telegramHandle !== undefined)  patch.telegram_handle   = fields.telegramHandle;
+  if (fields.telegramUserId !== undefined)  patch.telegram_user_id  = fields.telegramUserId;
   if (fields.status !== undefined)          patch.status           = fields.status;
   if (fields.gustoAcc !== undefined)        patch.gusto_acc        = fields.gustoAcc;
   if (fields.crmName !== undefined)         patch.crm_name         = fields.crmName;

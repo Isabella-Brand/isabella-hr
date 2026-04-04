@@ -101,7 +101,7 @@ function SendFormModal({ onClose }: { onClose: () => void }) {
 function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "",
-    country: "", startDate: "", telegramHandle: "", crmName: "",
+    country: "", startDate: "", telegramHandle: "", telegramUserId: "", crmName: "",
   });
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -177,6 +177,12 @@ function AddEmployeeModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Telegram User ID</label>
+              <input type="text" value={form.telegramUserId} onChange={(e) => set("telegramUserId", e.target.value)} placeholder="e.g. 123456789"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <p className="text-xs text-gray-500 mt-1">Message @userinfobot on Telegram to get this.</p>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name</label>
               <input type="text" value={form.crmName} onChange={(e) => set("crmName", e.target.value)} placeholder="Name in CRM..."
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -215,6 +221,7 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
     country:        employee.country,
     startDate:      employee.startDate,
     telegramHandle: employee.telegramHandle,
+    telegramUserId: employee.telegramUserId,
     crmName:        employee.crmName,
     gustoAcc:       employee.gustoAcc,
   });
@@ -295,6 +302,12 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
               <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Telegram Handle</label>
               <input type="text" value={form.telegramHandle} onChange={(e) => set("telegramHandle", e.target.value)} placeholder="@username"
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Telegram User ID</label>
+              <input type="text" value={form.telegramUserId} onChange={(e) => set("telegramUserId", e.target.value)} placeholder="e.g. 123456789"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <p className="text-xs text-gray-500 mt-1">Message @userinfobot on Telegram to get this.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">CRM Name</label>

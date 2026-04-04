@@ -22,12 +22,12 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { id, firstName, lastName, email, country, startDate, telegramHandle,
+    const { id, firstName, lastName, email, country, startDate, telegramHandle, telegramUserId,
             status, gustoAcc, crmName, deactivatedDate, role, shiftAssigned } = await req.json();
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
     await updateEmployee(id, {
-      firstName, lastName, email, country, startDate, telegramHandle,
+      firstName, lastName, email, country, startDate, telegramHandle, telegramUserId,
       status: status as EmployeeStatus,
       gustoAcc, crmName, deactivatedDate,
       role: role as EmployeeRole,

@@ -14,6 +14,7 @@ export default function OnboardingPage() {
     country: "",
     startDate: "",
     telegramHandle: "",
+    telegramUserId: "",
   });
 
   function set(field: string, value: string) {
@@ -143,6 +144,22 @@ export default function OnboardingPage() {
                 placeholder="@username"
                 className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+                Telegram User ID *
+              </label>
+              <input
+                type="text"
+                value={form.telegramUserId}
+                onChange={(e) => set("telegramUserId", e.target.value)}
+                placeholder="e.g. 123456789"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                Message <span className="text-indigo-400 font-medium">@userinfobot</span> on Telegram — it will instantly reply with your numeric ID. Paste it here.
+              </p>
             </div>
 
             {state === "error" && (
