@@ -8,10 +8,12 @@ import {
   type Shift,
 } from "@/lib/roster";
 import type { AttendanceRecord } from "@/lib/sheets";
+import type { BreakRecord } from "@/lib/breaks";
 
 interface DashboardData {
   active: AttendanceRecord[];
   today: AttendanceRecord[];
+  breaks: BreakRecord[];
 }
 
 interface PersonTotal {
@@ -194,6 +196,41 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-1">Hours Today</p>
               </div>
             </div>
+
+            {/* On Break */}
+            {data.breaks.length > 0 && (
+              <>
+                <h2 className="text-sm font-semibold text-amber-500 uppercase tracking-wider mb-3">
+                  On Break &mdash; {data.breaks.length} {data.breaks.length === 1 ? "person" : "people"}
+                </h2>
+                <div className="mb-6 rounded-xl overflow-hidden border border-amber-700">
+                  <div className="bg-amber-950 px-4 py-2 text-xs font-semibold text-amber-400">
+                    Currently on break
+                  </div>
+                  <div className="bg-gray-900 divide-y divide-gray-800">
+                    {data.breaks.map((b) => {
+                      const diff = Date.now() - new Date(b.breakStart).getTime();
+                      const h = Math.floor(diff / 3600000);
+                      const m = Math.floor((diff % 3600000) / 60000);
+                      const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                      return (
+                        <div key={b.id} className="flex items-center justify-between px-4 py-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">{b.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Since {new Date(b.breakStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })} EST
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold text-amber-400 bg-amber-950 border border-amber-700 px-2 py-0.5 rounded-full">
+                            {dur}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Live — currently clocked in */}
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
