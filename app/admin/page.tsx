@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type { Employee, EmployeeStatus, EmployeeRole, EmployeeShift } from "@/lib/employees";
+import type { Strike } from "@/lib/strikes";
 
 // ── Send Form Modal ───────────────────────────────────────────────
 
@@ -343,18 +344,226 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
   );
 }
 
+// ── Issue Strike Modal ────────────────────────────────────────────
+
+const STRIKE_REASONS = [
+  "Late Clock In",
+  "No Call No Show",
+  "Performance Issue",
+  "Policy Violation",
+  "Insubordination",
+  "Unprofessional Conduct",
+  "Other",
+];
+
+function IssueStrikeModal({
+  employees,
+  onClose,
+  onIssued,
+}: {
+  employees: Employee[];
+  onClose: () => void;
+  onIssued: () => void;
+}) {
+  const [employeeId, setEmployeeId] = useState("");
+  const [reason, setReason] = useState("");
+  const [description, setDescription] = useState("");
+  const [issuedBy, setIssuedBy] = useState("HR");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  const activeEmps = employees.filter((e) => e.status === "Active");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const emp = employees.find((e) => e.id === employeeId);
+    if (!emp) return;
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/strikes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId,
+          employeeName: `${emp.firstName} ${emp.lastName}`.trim(),
+          reason,
+          description,
+          issuedBy,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to issue strike");
+      setStatus("success");
+      setTimeout(() => { onIssued(); onClose(); }, 1000);
+    } catch (err: any) {
+      setErrMsg(err.message);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-white font-bold text-lg">Issue Strike</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {status === "success" ? (
+          <div className="text-center py-6">
+            <div className="text-4xl mb-3">⚠️</div>
+            <p className="text-yellow-400 font-semibold">Strike issued.</p>
+            <button onClick={onClose} className="mt-5 w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
+              Close
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Employee *</label>
+              <select
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                required
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">— Select employee —</option>
+                {activeEmps.map((e) => (
+                  <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Reason *</label>
+              <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                required
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">— Select reason —</option>
+                {STRIKE_REASONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Additional details..."
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Issued By</label>
+              <input
+                type="text"
+                value={issuedBy}
+                onChange={(e) => setIssuedBy(e.target.value)}
+                placeholder="HR"
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            {status === "error" && (
+              <div className="rounded-xl px-4 py-3 bg-red-950 border border-red-700">
+                <p className="text-xs text-red-400">{errMsg}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-all">
+                Cancel
+              </button>
+              <button type="submit" disabled={status === "loading"}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold transition-all disabled:opacity-60">
+                {status === "loading" ? "Issuing..." : "Issue Strike"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Strike Detail Modal ───────────────────────────────────────────
+
+function StrikesDetailModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const [strikes, setStrikes] = useState<Strike[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/strikes?employeeId=${employee.id}`)
+      .then((r) => r.json())
+      .then((data) => { setStrikes(data.strikes ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [employee.id]);
+
+  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h2 className="text-white font-bold text-lg">Strike Record</h2>
+            <p className="text-gray-400 text-xs mt-0.5">{fullName}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : strikes.length === 0 ? (
+          <p className="text-center text-gray-500 py-8 text-sm">No strikes on record.</p>
+        ) : (
+          <div className="space-y-3">
+            {strikes.map((s) => (
+              <div key={s.id} className="bg-red-950/50 border border-red-900 rounded-xl p-4">
+                <div className="flex items-start justify-between mb-1">
+                  <span className="text-red-400 font-semibold text-sm">{s.reason}</span>
+                  <span className="text-gray-500 text-xs">{s.date}</span>
+                </div>
+                {s.description && (
+                  <p className="text-gray-300 text-xs mt-1">{s.description}</p>
+                )}
+                <p className="text-gray-500 text-xs mt-2">Issued by: {s.issuedBy}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose} className="mt-5 w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Employee Row ──────────────────────────────────────────────────
 
 function EmployeeRow({
   employee,
+  strikeCount,
   onUpdate,
   onEdit,
   onDelete,
+  onViewStrikes,
 }: {
   employee: Employee;
+  strikeCount: number;
   onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
+  onViewStrikes: (employee: Employee) => void;
 }) {
   const [status, setStatus] = useState<EmployeeStatus>(employee.status);
   const [gusto, setGusto] = useState(employee.gustoAcc);
@@ -508,6 +717,18 @@ function EmployeeRow({
         />
       </td>
       <td className="px-4 py-3 text-center">
+        {strikeCount > 0 ? (
+          <button
+            onClick={() => onViewStrikes(employee)}
+            className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full bg-red-900 border border-red-700 text-red-300 text-xs font-bold hover:bg-red-800 transition-colors"
+          >
+            {strikeCount}
+          </button>
+        ) : (
+          <span className="text-gray-600 text-xs">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-center">
         {saving ? (
           <span className="text-xs text-indigo-400 animate-pulse">saving…</span>
         ) : (
@@ -547,6 +768,9 @@ export default function AdminPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [issuingStrike, setIssuingStrike] = useState(false);
+  const [viewingStrikesFor, setViewingStrikesFor] = useState<Employee | null>(null);
+  const [strikeCounts, setStrikeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -560,10 +784,15 @@ export default function AdminPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/employees");
-      if (!res.ok) throw new Error("Failed to load employees");
-      const data = await res.json();
-      setEmployees(data.employees);
+      const [empRes, countsRes] = await Promise.all([
+        fetch("/api/employees"),
+        fetch("/api/strikes"),
+      ]);
+      if (!empRes.ok) throw new Error("Failed to load employees");
+      const empData = await empRes.json();
+      const countsData = await countsRes.json();
+      setEmployees(empData.employees);
+      setStrikeCounts(countsData.counts ?? {});
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -658,7 +887,7 @@ export default function AdminPage() {
   const tableHeaders = (
     <thead>
       <tr className="border-b border-gray-700">
-        {["Employee","Telegram","Country","Start Date","Status / Date","Role","Shift","Gusto Acc","CRM Name",""].map((h) => (
+        {["Employee","Telegram","Country","Start Date","Status / Date","Role","Shift","Gusto Acc","CRM Name","Strikes",""].map((h) => (
           <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">{h}</th>
         ))}
       </tr>
@@ -669,6 +898,19 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-950 p-4 md:p-8">
       {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
       {showAddModal && <AddEmployeeModal onClose={() => setShowAddModal(false)} onAdded={fetchEmployees} />}
+      {issuingStrike && (
+        <IssueStrikeModal
+          employees={employees}
+          onClose={() => setIssuingStrike(false)}
+          onIssued={fetchEmployees}
+        />
+      )}
+      {viewingStrikesFor && (
+        <StrikesDetailModal
+          employee={viewingStrikesFor}
+          onClose={() => setViewingStrikesFor(null)}
+        />
+      )}
       {editingEmployee && (
         <EditEmployeeModal
           employee={editingEmployee}
@@ -710,6 +952,12 @@ export default function AdminPage() {
             <p className="text-gray-400 text-sm mt-1">Isabella — HR Portal</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIssuingStrike(true)}
+              className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white text-sm font-semibold transition-all"
+            >
+              Issue Strike
+            </button>
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold transition-all"
@@ -869,7 +1117,7 @@ export default function AdminPage() {
                 {tableHeaders}
                 <tbody>
                   {filteredActiveEmployees.map((emp) => (
-                    <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} />
+                    <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} />
                   ))}
                 </tbody>
               </table>
@@ -897,7 +1145,7 @@ export default function AdminPage() {
                   {tableHeaders}
                   <tbody>
                     {archivedEmployees.map((emp) => (
-                      <EmployeeRow key={emp.id} employee={emp} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} />
+                      <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} />
                     ))}
                   </tbody>
                 </table>
