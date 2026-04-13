@@ -42,6 +42,16 @@ function rowToEmployee(r: Record<string, string>): Employee {
   };
 }
 
+export async function getEmployeeById(id: string): Promise<Employee | null> {
+  const { data, error } = await db
+    .from("employees")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? rowToEmployee(data) : null;
+}
+
 export async function getAllEmployees(): Promise<Employee[]> {
   const { data, error } = await db
     .from("employees")
