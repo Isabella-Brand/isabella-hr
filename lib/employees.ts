@@ -124,6 +124,19 @@ export async function deleteEmployee(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function getAllActiveEmployees(): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await db
+    .from("employees")
+    .select("id, first_name, last_name")
+    .eq("status", "Active")
+    .order("first_name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id:   r.id,
+    name: `${r.first_name} ${r.last_name}`.trim(),
+  }));
+}
+
 export async function getActiveClockInEmployees(): Promise<{ name: string; email: string; shift: string }[]> {
   const { data, error } = await db
     .from("employees")
