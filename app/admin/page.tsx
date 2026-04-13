@@ -629,7 +629,12 @@ function EmployeeRow({
         <div className="text-white font-medium text-sm">{fullName || "—"}</div>
         <div className="text-gray-400 text-xs mt-0.5">{employee.email}</div>
       </td>
-      <td className="px-4 py-3 text-gray-300 text-sm">{employee.telegramHandle || "—"}</td>
+      <td className="px-4 py-3">
+        <div className="text-gray-300 text-sm">{employee.telegramHandle || "—"}</div>
+        {employee.telegramUserId && (
+          <div className="text-gray-500 text-xs mt-0.5">{employee.telegramUserId}</div>
+        )}
+      </td>
       <td className="px-4 py-3 text-gray-300 text-sm">{employee.country || "—"}</td>
       <td className="px-4 py-3 text-gray-300 text-sm">{employee.startDate || "—"}</td>
       <td className="px-4 py-3">
