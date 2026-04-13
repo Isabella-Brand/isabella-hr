@@ -776,6 +776,12 @@ export default function AdminPage() {
   const [issuingStrike, setIssuingStrike] = useState(false);
   const [viewingStrikesFor, setViewingStrikesFor] = useState<Employee | null>(null);
   const [strikeCounts, setStrikeCounts] = useState<Record<string, number>>({});
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResults, setSyncResults] = useState<{
+    added: number; failed: number; skipped: number;
+    results: { name: string; status: "added" | "failed"; error?: string }[];
+    skippedNames: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/admin/login");
@@ -826,6 +832,20 @@ export default function AdminPage() {
     setEmployees((prev) => prev.filter((e) => e.id !== employee.id));
     setDeletingEmployee(null);
     setDeleteLoading(false);
+  }
+
+  async function handleTelegramSync() {
+    setSyncLoading(true);
+    setSyncResults(null);
+    try {
+      const res  = await fetch("/api/telegram-sync", { method: "POST" });
+      const data = await res.json();
+      setSyncResults(data);
+    } catch {
+      setSyncResults(null);
+    } finally {
+      setSyncLoading(false);
+    }
   }
 
   if (status === "loading" || status === "unauthenticated") {
@@ -903,6 +923,61 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-950 p-4 md:p-8">
       {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
       {showAddModal && <AddEmployeeModal onClose={() => setShowAddModal(false)} onAdded={fetchEmployees} />}
+      {syncResults && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-white font-bold text-lg">Telegram Sync Complete</h2>
+              <button onClick={() => setSyncResults(null)} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="bg-green-950 border border-green-800 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-green-400">{syncResults.added}</p>
+                <p className="text-xs text-green-600 mt-0.5">Added</p>
+              </div>
+              <div className="bg-red-950 border border-red-800 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-red-400">{syncResults.failed}</p>
+                <p className="text-xs text-red-600 mt-0.5">Failed</p>
+              </div>
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-gray-400">{syncResults.skipped}</p>
+                <p className="text-xs text-gray-500 mt-0.5">No TG ID</p>
+              </div>
+            </div>
+
+            {syncResults.results.length > 0 && (
+              <div className="space-y-1.5 mb-4">
+                {syncResults.results.map((r, i) => (
+                  <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm
+                    ${r.status === "added" ? "bg-green-950/50" : "bg-red-950/50"}`}>
+                    <span className="text-white">{r.name}</span>
+                    {r.status === "added"
+                      ? <span className="text-green-400 text-xs font-semibold">Added</span>
+                      : <span className="text-red-400 text-xs">{r.error ?? "Failed"}</span>
+                    }
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {syncResults.skippedNames.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-3 mb-4">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">Missing Telegram ID</p>
+                {syncResults.skippedNames.map((name, i) => (
+                  <p key={i} className="text-gray-500 text-xs">{name}</p>
+                ))}
+              </div>
+            )}
+
+            <button onClick={() => setSyncResults(null)}
+              className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
       {issuingStrike && (
         <IssueStrikeModal
           employees={employees}
@@ -957,6 +1032,13 @@ export default function AdminPage() {
             <p className="text-gray-400 text-sm mt-1">Isabella — HR Portal</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleTelegramSync}
+              disabled={syncLoading}
+              className="px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-600 text-white text-sm font-semibold transition-all disabled:opacity-60"
+            >
+              {syncLoading ? "Syncing..." : "Sync Telegram"}
+            </button>
             <button
               onClick={() => setIssuingStrike(true)}
               className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white text-sm font-semibold transition-all"
