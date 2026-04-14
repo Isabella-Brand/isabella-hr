@@ -5,6 +5,12 @@ import { getAllEmployees, getEmployeeById, updateEmployee, deleteEmployee } from
 import type { EmployeeStatus, EmployeeRole, EmployeeShift } from "@/lib/employees";
 import { addToSupergroup, removeFromSupergroup } from "@/lib/telegram";
 
+export type TelegramSyncResult =
+  | { triggered: false }
+  | { triggered: true; action: "add" | "remove"; result: "success"; employeeName: string }
+  | { triggered: true; action: "add" | "remove"; result: "failed";  employeeName: string; error: string }
+  | { triggered: true; action: "add" | "remove"; result: "skipped"; employeeName: string; reason: string };
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,39 +33,48 @@ export async function PATCH(req: NextRequest) {
             status, gustoAcc, crmName, deactivatedDate, role, shiftAssigned } = await req.json();
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-    // Fetch current record before update so we can detect status changes
     const before = await getEmployeeById(id);
 
     await updateEmployee(id, {
       firstName, lastName, email, country, startDate, telegramHandle, telegramUserId,
-      status:       status       as EmployeeStatus,
-      gustoAcc,     crmName,     deactivatedDate,
-      role:         role         as EmployeeRole,
+      status:        status        as EmployeeStatus,
+      gustoAcc,      crmName,      deactivatedDate,
+      role:          role          as EmployeeRole,
       shiftAssigned: shiftAssigned as EmployeeShift,
     });
 
-    // Trigger Telegram group management when status changes
-    if (status !== undefined && before && before.status !== status) {
-      // Fetch fresh record to get the latest telegramUserId and role
-      const after = await getEmployeeById(id);
-      const tgId  = after?.telegramUserId ?? before.telegramUserId;
-      const empRole = after?.role ?? before.role;
+    let telegramSync: TelegramSyncResult = { triggered: false };
 
-      if (tgId) {
+    if (status !== undefined && before && before.status !== status) {
+      const after      = await getEmployeeById(id);
+      const tgId       = after?.telegramUserId ?? before.telegramUserId;
+      const empRole    = after?.role ?? before.role;
+      const empName    = `${before.firstName} ${before.lastName}`.trim();
+      const action     = status === "Active" ? "add" : "remove";
+
+      if (!tgId) {
+        telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
+          reason: "No Telegram User ID on file — ask them to submit via the /update-tg link." };
+      } else if (action === "add" && !empRole) {
+        telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
+          reason: "No role assigned yet. Assign a role first, then re-activate." };
+      } else {
         try {
-          if (status === "Active" && empRole) {
+          if (action === "add") {
             await addToSupergroup(tgId);
-          } else if (status === "Deactivated") {
+          } else {
             await removeFromSupergroup(tgId);
           }
+          telegramSync = { triggered: true, action, result: "success", employeeName: empName };
         } catch (tgErr: any) {
-          // Log but don't fail the HR update if Telegram call fails
           console.error("Telegram sync error:", tgErr.message);
+          telegramSync = { triggered: true, action, result: "failed", employeeName: empName,
+            error: tgErr.message ?? "Unknown Telegram error" };
         }
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, telegramSync });
   } catch (err: any) {
     console.error("employees PATCH error:", err);
     return NextResponse.json({ error: err.message ?? "Internal error" }, { status: 500 });

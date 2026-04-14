@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import type { Employee, EmployeeStatus, EmployeeRole, EmployeeShift } from "@/lib/employees";
 import type { Strike } from "@/lib/strikes";
+import type { TelegramSyncResult } from "@/app/api/employees/route";
 
 // ── Send Form Modal ───────────────────────────────────────────────
 
@@ -344,6 +345,63 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
   );
 }
 
+// ── Telegram Sync Status Modal ────────────────────────────────────
+
+function TelegramSyncModal({ result, onClose }: { result: TelegramSyncResult; onClose: () => void }) {
+  if (!result.triggered) return null;
+
+  const isSuccess = result.result === "success";
+  const isSkipped = result.result === "skipped";
+  const isFailed  = result.result === "failed";
+  const actionLabel = result.action === "add" ? "added to" : "removed from";
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-white font-bold text-lg">Telegram Group Sync</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        <div className={`rounded-xl p-4 mb-5 border ${
+          isSuccess ? "bg-green-950 border-green-800" :
+          isSkipped ? "bg-gray-800 border-gray-700" :
+                      "bg-red-950 border-red-800"
+        }`}>
+          <div className="flex items-start gap-3">
+            <span className="text-2xl mt-0.5">
+              {isSuccess ? "✅" : isSkipped ? "⚪" : "❌"}
+            </span>
+            <div>
+              <p className={`font-semibold text-sm ${
+                isSuccess ? "text-green-400" :
+                isSkipped ? "text-gray-300" :
+                            "text-red-400"
+              }`}>
+                {isSuccess && `Successfully ${actionLabel} supergroup`}
+                {isSkipped && "Skipped — not synced"}
+                {isFailed  && `Failed to be ${actionLabel} supergroup`}
+              </p>
+              <p className="text-gray-400 text-xs mt-1 font-medium">{result.employeeName}</p>
+              {isSkipped && "reason" in result && (
+                <p className="text-gray-400 text-xs mt-2">{result.reason}</p>
+              )}
+              {isFailed && "error" in result && (
+                <p className="text-red-400 text-xs mt-2 font-mono">{result.error}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <button onClick={onClose}
+          className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Issue Strike Modal ────────────────────────────────────────────
 
 const STRIKE_REASONS = [
@@ -557,13 +615,15 @@ function EmployeeRow({
   onEdit,
   onDelete,
   onViewStrikes,
+  onTelegramSync,
 }: {
   employee: Employee;
   strikeCount: number;
-  onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<void>;
+  onUpdate: (id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) => Promise<TelegramSyncResult>;
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
   onViewStrikes: (employee: Employee) => void;
+  onTelegramSync: (result: TelegramSyncResult) => void;
 }) {
   const [status, setStatus] = useState<EmployeeStatus>(employee.status);
   const [gusto, setGusto] = useState(employee.gustoAcc);
@@ -580,8 +640,9 @@ function EmployeeRow({
     setSaving(true);
     const newDate = val === "Deactivated" ? new Date().toISOString().split("T")[0] : "";
     setDeactivatedDate(newDate);
-    await onUpdate(employee.id, { status: val, deactivatedDate: newDate });
+    const tgResult = await onUpdate(employee.id, { status: val, deactivatedDate: newDate });
     setSaving(false);
+    if (tgResult?.triggered) onTelegramSync(tgResult);
   }
 
   async function handleGustoBlur() {
@@ -776,6 +837,7 @@ export default function AdminPage() {
   const [issuingStrike, setIssuingStrike] = useState(false);
   const [viewingStrikesFor, setViewingStrikesFor] = useState<Employee | null>(null);
   const [strikeCounts, setStrikeCounts] = useState<Record<string, number>>({});
+  const [telegramSyncPopup, setTelegramSyncPopup] = useState<TelegramSyncResult | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResults, setSyncResults] = useState<{
     added: number; failed: number; skipped: number;
@@ -811,15 +873,17 @@ export default function AdminPage() {
     }
   }
 
-  async function handleUpdate(id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }) {
-    await fetch("/api/employees", {
+  async function handleUpdate(id: string, fields: { status?: EmployeeStatus; gustoAcc?: string; crmName?: string; deactivatedDate?: string; role?: EmployeeRole; shiftAssigned?: EmployeeShift }): Promise<TelegramSyncResult> {
+    const res  = await fetch("/api/employees", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...fields }),
     });
+    const data = await res.json();
     setEmployees((prev) =>
       prev.map((e) => e.id === id ? { ...e, ...fields } : e)
     );
+    return data.telegramSync ?? { triggered: false };
   }
 
   async function handleDelete(employee: Employee) {
@@ -923,6 +987,10 @@ export default function AdminPage() {
     <main className="min-h-screen bg-gray-950 p-4 md:p-8">
       {showModal && <SendFormModal onClose={() => { setShowModal(false); fetchEmployees(); }} />}
       {showAddModal && <AddEmployeeModal onClose={() => setShowAddModal(false)} onAdded={fetchEmployees} />}
+      {telegramSyncPopup?.triggered && (
+        <TelegramSyncModal result={telegramSyncPopup} onClose={() => setTelegramSyncPopup(null)} />
+      )}
+
       {syncResults && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -1204,7 +1272,7 @@ export default function AdminPage() {
                 {tableHeaders}
                 <tbody>
                   {filteredActiveEmployees.map((emp) => (
-                    <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} />
+                    <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} onTelegramSync={setTelegramSyncPopup} />
                   ))}
                 </tbody>
               </table>
@@ -1232,7 +1300,7 @@ export default function AdminPage() {
                   {tableHeaders}
                   <tbody>
                     {archivedEmployees.map((emp) => (
-                      <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} />
+                      <EmployeeRow key={emp.id} employee={emp} strikeCount={strikeCounts[emp.id] ?? 0} onUpdate={handleUpdate} onEdit={setEditingEmployee} onDelete={setDeletingEmployee} onViewStrikes={setViewingStrikesFor} onTelegramSync={setTelegramSyncPopup} />
                     ))}
                   </tbody>
                 </table>
