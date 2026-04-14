@@ -349,11 +349,20 @@ function EditEmployeeModal({ employee, onClose, onSaved }: { employee: Employee;
 
 function TelegramSyncModal({ result, onClose }: { result: TelegramSyncResult; onClose: () => void }) {
   if (!result.triggered) return null;
+  const [copied, setCopied] = useState(false);
 
-  const isSuccess = result.result === "success";
+  const isInvite  = result.action === "add"    && result.result === "invite_created";
+  const isSuccess = result.action === "remove" && result.result === "success";
   const isSkipped = result.result === "skipped";
   const isFailed  = result.result === "failed";
-  const actionLabel = result.action === "add" ? "added to" : "removed from";
+
+  function copyLink() {
+    if (isInvite && "inviteLink" in result) {
+      navigator.clipboard.writeText(result.inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -363,39 +372,57 @@ function TelegramSyncModal({ result, onClose }: { result: TelegramSyncResult; on
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
         </div>
 
-        <div className={`rounded-xl p-4 mb-5 border ${
-          isSuccess ? "bg-green-950 border-green-800" :
-          isSkipped ? "bg-gray-800 border-gray-700" :
-                      "bg-red-950 border-red-800"
+        <div className={`rounded-xl p-4 mb-4 border ${
+          isInvite  ? "bg-indigo-950 border-indigo-800" :
+          isSuccess ? "bg-green-950  border-green-800"  :
+          isSkipped ? "bg-gray-800   border-gray-700"   :
+                      "bg-red-950    border-red-800"
         }`}>
           <div className="flex items-start gap-3">
             <span className="text-2xl mt-0.5">
-              {isSuccess ? "✅" : isSkipped ? "⚪" : "❌"}
+              {isInvite ? "🔗" : isSuccess ? "✅" : isSkipped ? "⚪" : "❌"}
             </span>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className={`font-semibold text-sm ${
-                isSuccess ? "text-green-400" :
-                isSkipped ? "text-gray-300" :
+                isInvite  ? "text-indigo-300" :
+                isSuccess ? "text-green-400"  :
+                isSkipped ? "text-gray-300"   :
                             "text-red-400"
               }`}>
-                {isSuccess && `Successfully ${actionLabel} supergroup`}
+                {isInvite  && "Invite link ready — send to employee"}
+                {isSuccess && "Successfully removed from supergroup"}
                 {isSkipped && "Skipped — not synced"}
-                {isFailed  && `Failed to be ${actionLabel} supergroup`}
+                {isFailed  && "Failed"}
               </p>
               <p className="text-gray-400 text-xs mt-1 font-medium">{result.employeeName}</p>
               {isSkipped && "reason" in result && (
                 <p className="text-gray-400 text-xs mt-2">{result.reason}</p>
               )}
               {isFailed && "error" in result && (
-                <p className="text-red-400 text-xs mt-2 font-mono">{result.error}</p>
+                <p className="text-red-400 text-xs mt-2 font-mono break-all">{result.error}</p>
               )}
             </div>
           </div>
         </div>
 
+        {isInvite && "inviteLink" in result && (
+          <>
+            <div className="bg-gray-800 rounded-xl px-4 py-3 mb-3 flex items-center gap-2">
+              <p className="text-indigo-300 text-xs font-mono truncate flex-1">{result.inviteLink}</p>
+            </div>
+            <button
+              onClick={copyLink}
+              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all mb-2"
+            >
+              {copied ? "Copied!" : "Copy Invite Link"}
+            </button>
+            <p className="text-gray-500 text-xs text-center mb-3">Single-use · expires in 24 hours</p>
+          </>
+        )}
+
         <button onClick={onClose}
           className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold transition-all">
-          OK
+          {isInvite ? "Done" : "OK"}
         </button>
       </div>
     </div>
@@ -840,8 +867,8 @@ export default function AdminPage() {
   const [telegramSyncPopup, setTelegramSyncPopup] = useState<TelegramSyncResult | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResults, setSyncResults] = useState<{
-    added: number; failed: number; skipped: number;
-    results: { name: string; status: "added" | "failed"; error?: string }[];
+    created: number; failed: number; skipped: number;
+    results: { name: string; status: "invite_created" | "failed"; inviteLink?: string; error?: string }[];
     skippedNames: string[];
   } | null>(null);
 
@@ -1000,9 +1027,9 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-5">
-              <div className="bg-green-950 border border-green-800 rounded-xl p-3 text-center">
-                <p className="text-2xl font-bold text-green-400">{syncResults.added}</p>
-                <p className="text-xs text-green-600 mt-0.5">Added</p>
+              <div className="bg-indigo-950 border border-indigo-800 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-indigo-300">{syncResults.created}</p>
+                <p className="text-xs text-indigo-500 mt-0.5">Links Created</p>
               </div>
               <div className="bg-red-950 border border-red-800 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-red-400">{syncResults.failed}</p>
@@ -1015,15 +1042,25 @@ export default function AdminPage() {
             </div>
 
             {syncResults.results.length > 0 && (
-              <div className="space-y-1.5 mb-4">
+              <div className="space-y-2 mb-4">
                 {syncResults.results.map((r, i) => (
-                  <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm
-                    ${r.status === "added" ? "bg-green-950/50" : "bg-red-950/50"}`}>
-                    <span className="text-white">{r.name}</span>
-                    {r.status === "added"
-                      ? <span className="text-green-400 text-xs font-semibold">Added</span>
-                      : <span className="text-red-400 text-xs">{r.error ?? "Failed"}</span>
-                    }
+                  <div key={i} className={`rounded-lg px-3 py-2 text-sm
+                    ${r.status === "invite_created" ? "bg-indigo-950/50" : "bg-red-950/50"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white text-xs font-medium">{r.name}</span>
+                      {r.status === "invite_created"
+                        ? <span className="text-indigo-300 text-xs font-semibold">🔗 Link ready</span>
+                        : <span className="text-red-400 text-xs">{r.error ?? "Failed"}</span>
+                      }
+                    </div>
+                    {r.status === "invite_created" && r.inviteLink && (
+                      <button
+                        onClick={() => navigator.clipboard.writeText(r.inviteLink!)}
+                        className="mt-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-mono truncate block w-full text-left"
+                      >
+                        {r.inviteLink}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

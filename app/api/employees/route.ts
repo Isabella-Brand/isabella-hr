@@ -3,13 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAllEmployees, getEmployeeById, updateEmployee, deleteEmployee } from "@/lib/employees";
 import type { EmployeeStatus, EmployeeRole, EmployeeShift } from "@/lib/employees";
-import { addToSupergroup, removeFromSupergroup } from "@/lib/telegram";
+import { createInviteLink, removeFromSupergroup } from "@/lib/telegram";
 
 export type TelegramSyncResult =
   | { triggered: false }
-  | { triggered: true; action: "add" | "remove"; result: "success"; employeeName: string }
-  | { triggered: true; action: "add" | "remove"; result: "failed";  employeeName: string; error: string }
-  | { triggered: true; action: "add" | "remove"; result: "skipped"; employeeName: string; reason: string };
+  | { triggered: true; action: "add";    result: "invite_created"; employeeName: string; inviteLink: string }
+  | { triggered: true; action: "add";    result: "failed";         employeeName: string; error: string }
+  | { triggered: true; action: "add";    result: "skipped";        employeeName: string; reason: string }
+  | { triggered: true; action: "remove"; result: "success";        employeeName: string }
+  | { triggered: true; action: "remove"; result: "failed";         employeeName: string; error: string }
+  | { triggered: true; action: "remove"; result: "skipped";        employeeName: string; reason: string };
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -46,30 +49,39 @@ export async function PATCH(req: NextRequest) {
     let telegramSync: TelegramSyncResult = { triggered: false };
 
     if (status !== undefined && before && before.status !== status) {
-      const after      = await getEmployeeById(id);
-      const tgId       = after?.telegramUserId ?? before.telegramUserId;
-      const empRole    = after?.role ?? before.role;
-      const empName    = `${before.firstName} ${before.lastName}`.trim();
-      const action     = status === "Active" ? "add" : "remove";
+      const after   = await getEmployeeById(id);
+      const tgId    = after?.telegramUserId ?? before.telegramUserId;
+      const empRole = after?.role ?? before.role;
+      const empName = `${before.firstName} ${before.lastName}`.trim();
+      const action  = status === "Active" ? "add" : "remove";
 
-      if (!tgId) {
-        telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
-          reason: "No Telegram User ID on file — ask them to submit via the /update-tg link." };
-      } else if (action === "add" && !empRole) {
-        telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
-          reason: "No role assigned yet. Assign a role first, then re-activate." };
-      } else {
-        try {
-          if (action === "add") {
-            await addToSupergroup(tgId);
-          } else {
-            await removeFromSupergroup(tgId);
+      if (action === "add") {
+        if (!empRole) {
+          telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
+            reason: "No role assigned yet. Assign a role first, then re-activate." };
+        } else {
+          try {
+            const inviteLink = await createInviteLink(empName);
+            telegramSync = { triggered: true, action, result: "invite_created",
+              employeeName: empName, inviteLink };
+          } catch (err: any) {
+            telegramSync = { triggered: true, action, result: "failed",
+              employeeName: empName, error: err.message ?? "Unknown error" };
           }
-          telegramSync = { triggered: true, action, result: "success", employeeName: empName };
-        } catch (tgErr: any) {
-          console.error("Telegram sync error:", tgErr.message);
-          telegramSync = { triggered: true, action, result: "failed", employeeName: empName,
-            error: tgErr.message ?? "Unknown Telegram error" };
+        }
+      } else {
+        // Deactivated — remove from supergroup
+        if (!tgId) {
+          telegramSync = { triggered: true, action, result: "skipped", employeeName: empName,
+            reason: "No Telegram User ID on file." };
+        } else {
+          try {
+            await removeFromSupergroup(tgId);
+            telegramSync = { triggered: true, action, result: "success", employeeName: empName };
+          } catch (err: any) {
+            telegramSync = { triggered: true, action, result: "failed",
+              employeeName: empName, error: err.message ?? "Unknown error" };
+          }
         }
       }
     }

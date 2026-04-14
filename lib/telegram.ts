@@ -13,39 +13,25 @@ async function callTelegram(method: string, body: Record<string, unknown>) {
   return data;
 }
 
-export async function addToSupergroup(telegramUserId: string): Promise<void> {
+// Telegram Bot API cannot directly add members to a supergroup.
+// Instead, we generate a single-use invite link (expires in 24h)
+// that HR can send to the employee.
+export async function createInviteLink(employeeName: string): Promise<string> {
   if (!BOT_TOKEN || !CHAT_ID) throw new Error("Telegram env vars not configured");
-
-  try {
-    await callTelegram("addChatMember", {
-      chat_id: CHAT_ID,
-      user_id: Number(telegramUserId),
-    });
-  } catch (err: any) {
-    const msg: string = err.message ?? "";
-
-    // Already in the group — treat as success
-    if (msg.includes("USER_ALREADY_PARTICIPANT") || msg.includes("already a member")) return;
-
-    // Was previously kicked — unban first, then add
-    if (msg.includes("USER_KICKED") || msg.includes("kicked") || msg.includes("banned")) {
-      await callTelegram("unbanChatMember", { chat_id: CHAT_ID, user_id: Number(telegramUserId) });
-      await callTelegram("addChatMember",   { chat_id: CHAT_ID, user_id: Number(telegramUserId) });
-      return;
-    }
-
-    // Bot can't add/remove admins — treat as success (they're already in the group)
-    if (msg.includes("not enough rights") || msg.includes("PARTICIPANT_ID_INVALID")) return;
-
-    throw err;
-  }
+  const expireDate = Math.floor(Date.now() / 1000) + 86400; // 24 hours
+  const result = await callTelegram("createChatInviteLink", {
+    chat_id:      CHAT_ID,
+    name:         `Invite — ${employeeName}`,
+    expire_date:  expireDate,
+    member_limit: 1,
+  });
+  return result.result.invite_link as string;
 }
 
+// Bans then immediately unbans — kicks the user without permanently banning them.
 export async function removeFromSupergroup(telegramUserId: string): Promise<void> {
   if (!BOT_TOKEN || !CHAT_ID) throw new Error("Telegram env vars not configured");
-
   try {
-    // Ban then immediately unban — kicks without permanently banning
     await callTelegram("banChatMember", {
       chat_id:         CHAT_ID,
       user_id:         Number(telegramUserId),
@@ -57,11 +43,9 @@ export async function removeFromSupergroup(telegramUserId: string): Promise<void
     });
   } catch (err: any) {
     const msg: string = err.message ?? "";
-
-    // Can't remove an admin/owner — treat as success (they stay in, which is correct)
+    // Can't remove an admin/owner — silently ignore
     if (msg.includes("not enough rights") || msg.includes("PARTICIPANT_ID_INVALID") ||
         msg.includes("can't remove chat owner")) return;
-
     throw err;
   }
 }
