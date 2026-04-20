@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -14,16 +16,8 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
     const onboardingUrl = `${appUrl}/onboarding`;
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"Isabella Team" <${process.env.GMAIL_USER}>`,
+    await resend.emails.send({
+      from: "Isabella Team <onboarding@resend.dev>",
       to: email,
       subject: "Welcome to the Isabella Team — Complete Your Onboarding",
       html: `
